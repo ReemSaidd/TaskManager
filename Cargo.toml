@@ -1,11 +1,10 @@
 [package]
-name = "Task Manager"
+name = "TaskManager"
 description = "A terminal based task manager."
 version = "0.8.5"
 authors = ["Reem Said, Jana Saleh, Muhammed Azzazy"]
-edition = "2023"
+edition = "2021"
 repository = "https://github.com/ReemSaidd/TaskManager.git"
-license = "MIT"
 
 [dependencies]
 tui = "0.4.0"
@@ -13,3 +12,8 @@ termion = "1.5"
 sysinfo = "0.8.*"
 pretty-bytes = "0.2.2"
 "nom" = "4.2.3"
+
+[[bin]]
+doc = false
+path = "src/main.rs"
+name = "TaskManager"

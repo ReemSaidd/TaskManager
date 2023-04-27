@@ -3,6 +3,17 @@
 version = 3
 
 [[package]]
+name = "TaskManager"
+version = "0.8.5"
+dependencies = [
+ "nom",
+ "pretty-bytes",
+ "sysinfo",
+ "termion",
+ "tui",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -269,17 +280,6 @@ dependencies = [
  "numtoa",
  "redox_syscall",
  "redox_termios",
-]
-
-[[package]]
-name = "tkm"
-version = "0.8.5"
-dependencies = [
- "nom",
- "pretty-bytes",
- "sysinfo",
- "termion",
- "tui",
 ]
 
 [[package]]
