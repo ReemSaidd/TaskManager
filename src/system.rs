@@ -2,6 +2,7 @@ use sysinfo::{SystemExt, ProcessorExt, ProcessExt};
 //use sysinfo::{SystemExt, ProcessorExt, ProcessExt};
 use std::time::{SystemTime,UNIX_EPOCH};
 use crate::Process::Process;
+use nom::lib::std::collections::HashMap;
 
 pub static mut SYSTEM_START_TIME: u64 = 0;
 
@@ -108,28 +109,32 @@ impl System {
         }
     }
 
+    //still can't print it in a tree form
+  
+
     pub fn pstree(&mut self) -> String {
         let mut tree = String::new();
         let processes = self.sysinfo.get_process_list();
         let mut sorted_keys: Vec<_> = processes.keys().collect();
         sorted_keys.sort();
-        //processes.sort_by(|a, b| a.pid.partial_cmp(&b.pid).unwrap());
+
+
 
         for pid in sorted_keys {
             let mut indent = String::new();
             let mut parent_pid = processes[pid].parent();
 
-            while let Some(parent) = processes.get(&parent_pid.unwrap()) {
+            while let Some(parent) = parent_pid.and_then(|p| processes.get(&p)) {
                 indent.push_str("  ");
                 parent_pid = parent.parent();
             }
-    
-            // for _ in 0..processes[pid].parent() {
-            //     indent.push_str("  ");
-            // }
-            tree.push_str(&format!("{}{} ({})\n",
+            let smth = "N/A".to_string();
+            let parent_name = parent_pid.and_then(|p| processes.get(&p)).map(|p| p.name()).unwrap_or(&smth);
+        
+            tree.push_str(&format!("{}{}{} ({})\n",
                 indent,
                 processes[pid].name(),
+                parent_name,
                 processes[pid].pid()
             ));
         }
