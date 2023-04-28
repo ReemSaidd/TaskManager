@@ -1,7 +1,13 @@
 use sysinfo::{SystemExt, ProcessorExt, ProcessExt};
+//use sysinfo::{SystemExt, ProcessorExt, ProcessExt};
+use std::time::{SystemTime,UNIX_EPOCH};
+use crate::Process::Process;
 
-use crate::process::Process;
+pub static mut SYSTEM_START_TIME: u64 = 0;
 
+unsafe fn updatesystemstarttime() {
+    SYSTEM_START_TIME = (SystemTime::now()).duration_since(UNIX_EPOCH).unwrap().as_secs();
+}
 pub struct System {
     sysinfo: sysinfo::System,
     pub cpu_usage_history: Vec<u64>,
@@ -29,6 +35,9 @@ impl System {
         let mem_total = sysinfo.get_total_memory();
         let mem_usage_history = vec![0; history_width as usize];
 
+        unsafe {updatesystemstarttime();}
+        
+
         System {
             sysinfo,
             cpu_usage_history,
@@ -41,6 +50,8 @@ impl System {
             cpu_core_usages: vec![],
             processes: vec![]
         }
+
+
     }
 
     pub fn update(&mut self) -> System {
@@ -82,9 +93,49 @@ impl System {
         }
     }
 
+    // pub fn print(&self){
+    //     //loop over processes and call format function
+    //     for process in &self.processes {
+    //         println!("{:?}",process.format());
+
+    //     }
+    //     println!("new");
+    // }
+
     pub fn kill_process(&mut self, pid: i32) {
         if let Some(process) = self.sysinfo.get_process(pid) {
             process.kill(sysinfo::Signal::Kill);
         }
     }
+
+    pub fn pstree(&mut self) -> String {
+        let mut tree = String::new();
+        let processes = self.sysinfo.get_process_list();
+        let mut sorted_keys: Vec<_> = processes.keys().collect();
+        sorted_keys.sort();
+        //processes.sort_by(|a, b| a.pid.partial_cmp(&b.pid).unwrap());
+
+        for pid in sorted_keys {
+            let mut indent = String::new();
+            let mut parent_pid = processes[pid].parent();
+
+            while let Some(parent) = processes.get(&parent_pid.unwrap()) {
+                indent.push_str("  ");
+                parent_pid = parent.parent();
+            }
+    
+            // for _ in 0..processes[pid].parent() {
+            //     indent.push_str("  ");
+            // }
+            tree.push_str(&format!("{}{} ({})\n",
+                indent,
+                processes[pid].name(),
+                processes[pid].pid()
+            ));
+        }
+
+        tree
+    }
+
+
 }
