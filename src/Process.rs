@@ -1,44 +1,49 @@
-use sysinfo::{ProcessExt};
+use sysinfo;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use sysinfo::ProcessExt;
+use sysinfo::NetworkExt;
+use sysinfo::NetworkData;
 
 #[derive(PartialEq, Clone)]
 pub struct Process {
     pub pid: i32,
     pub name: String,
+    pub status:String,
     pub cpu: f32,
     pub mem: u64,
     pub start_time: u64,
-    pub elapsed_time: u64,
-    pub parent: Option<sysinfo::Pid> 
+    pub parent: Option<sysinfo::Pid> ,
+    pub network: u64
 }
 
-impl Process {
-    pub fn new(process: &sysinfo::Process) -> Process {
-        Process {
-            pid: process.pid(),
-            name: process.name().to_string(),
-            cpu: process.cpu_usage(),
-            mem: process.memory(),
-            start_time: process.start_time(),
-            elapsed_time: 0,
-            parent: process.parent()
+    impl Process {
+        pub fn new(process: &sysinfo::Process) -> Process {
+            Process {
+                pid: process.pid(),
+                name: process.name().to_string(),
+                status:process.status().to_string(),
+                cpu: process.cpu_usage(),
+                mem: process.memory(),
+                time: process.start_time(),
+                parent: process.parent(),
+                network:process.network()
+            }
         }
-    }
 
-    pub fn format(&self) -> Vec<String> {
+pub fn format(&self) -> Vec<String> {
+    let parent_string = match self.parent {
+        Some(pid) => pid.to_string(),
+        None => String::from("N/A")
+    };
+    let systemtime: u64;
 
 
-        vec![
-            self.pid.to_string(),
-            self.name.clone(),
-            format!("{:.2}%", self.cpu),
-            pretty_bytes::converter::convert((self.mem as f64) * 1000.0),
-            format_time(self.elapsed_time),
-            parent_string
-        ]
-    }
-
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    unsafe{systemtime = SYSTEM_START_TIME;}
+    let time = now - systemtime + self.time;
+    let process_duration = format_time(time);
+    
     fn format_time(seconds: u64) -> String {
         let seconds = seconds as u64;
         let hours = seconds / 3600;
@@ -46,6 +51,21 @@ impl Process {
         let seconds = seconds % 60;
         format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
     }
+
+    let systemtime: u64;
+
+    unsafe{systemtime = SYSTEM_START_TIME;}
+
+    vec![
+        self.pid.to_string(),
+        self.name.clone(),
+        format!("{:.2}%", self.cpu),
+        pretty_bytes::converter::convert((self.mem as f64) * 1000.0),
+        process_duration,
+        parent_string
+    ]
+
+}
 }
 
 
