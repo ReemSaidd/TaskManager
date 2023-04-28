@@ -11,6 +11,9 @@ tui = "0.4.0"
 termion = "1.5"
 sysinfo = "0.8.*"
 pretty-bytes = "0.2.2"
+num_cpus = "1.0"
+cli-table = "0.4"
+psutil = "3.2.2"
 "nom" = "4.2.3"
 
 [[bin]]
