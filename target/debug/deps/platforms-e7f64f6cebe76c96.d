@@ -1,0 +1,18 @@
+/home/janasaleh/TaskManager/target/debug/deps/platforms-e7f64f6cebe76c96.rmeta: /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/lib.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/error.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier1.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier2.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier3.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/req.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target/arch.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target/env.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target/os.rs
+
+/home/janasaleh/TaskManager/target/debug/deps/platforms-e7f64f6cebe76c96.d: /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/lib.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/error.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier1.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier2.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier3.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/req.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target/arch.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target/env.rs /home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target/os.rs
+
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/lib.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/error.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier1.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier2.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier3.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/req.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/platform/tier.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target/arch.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target/env.rs:
+/home/janasaleh/.cargo/registry/src/github.com-1ecc6299db9ec823/platforms-2.0.0/src/target/os.rs:
+
+# env-dep:TARGET=x86_64-unknown-linux-gnu
