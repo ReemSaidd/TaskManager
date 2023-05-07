@@ -1,334 +1,433 @@
-use std::process;
-use clap::{Arg, App, SubCommand};
-use libc::SIGKILL;
-use libc::SIGTERM;
-use libc::signal;
-use psutil::Pid;
-use psutil::network::NetConnection;
-use sysinfo::{NetworkExt,RefreshKind,NetworkData, ProcessExt, SystemExt, Signal, System};
-use std::time::{SystemTime, UNIX_EPOCH};
-use sysinfo::{ComponentExt};
-use std::net::Ipv4Addr;
+
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use std::{error::Error, io};
+use tui::{
+    backend::{Backend, CrosstermBackend},
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans, Text},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
+    Frame, Terminal,
+};
+use sysinfo::{ComponentExt, NetworkExt, NetworksExt, ProcessExt, System, SystemExt, CpuExt, CpuRefreshKind, RefreshKind, DiskExt};
+use unicode_width::UnicodeWidthStr;
+use nix::sys::signal::{kill, Signal};
+use nix::unistd::Pid;
+use std::str;
 use std::process::Command;
-//extern crate psutil;
-//use psutil::{process::Process, Result};
 
-//use std::time::{SystemTime, UNIX_EPOCH};
+use psutil::process::{Process, ProcessError};
 
-//use crate::SYSTEM_START_TIME;
-
-//use std::process::Command;
-//use procfs::{ProcResult, Process};
-use std::io;
-//extern crate libc;
-
-use libc::{kill, pid_t};
-use psutil::process::processes;
-// use psutil::process::Process;
-// use psutil::Result;
-use psutil::{process::Process, Result};
-use prettytable::{Table, Row, Cell};
-
-//use command::{Command, CommandResult};
-
-
-pub static mut SYSTEM_START_TIME: u64 = 0;
-
-
-unsafe fn updatesystemstarttime() {
-    SYSTEM_START_TIME = (SystemTime::now()).duration_since(UNIX_EPOCH).unwrap().as_secs();
+enum InputMode {
+    Normal,
+    Editing,
 }
 
-
-pub fn format_time(seconds: u64) -> String {
-    let seconds = seconds as u64;
-   // let hours = seconds / 3600;
-    let minutes = (seconds / 60) % 60;
-    let seconds = seconds % 60;
-    format!("{:02}:{:02}",minutes, seconds)
+/// App holds the state of the application
+struct App {
+    /// Current value of the input box
+    input: String,
+    /// Current input mode
+    input_mode: InputMode,
+    messages: Vec<String>,
+    output: Vec<String>,
 }
 
-pub fn findbypid(pid: i32) -> Option<sysinfo::Process> {
-    let system = System::new();
-    for (pid_, process) in system.get_process_list().iter().map(|(pid, p)| (*pid, p)) {
-        if pid_ == pid {
-            return Some(process.clone());
+impl Default for App {
+    fn default() -> App {
+        App {
+            input: String::new(),
+            input_mode: InputMode::Normal,
+            messages: Vec::new(),
+            output: Vec::new(),
         }
     }
-    None}
-
-
- pub  fn sortasc() {
-    let mut system = System::new();
-   
-    system.refresh_all();
-  //  let mut system = System::new();
-    let mut process_list: Vec<_> = system
-    .get_process_list()
-    .iter()
-    .map(|(pid, process)| (*pid, process))
-    .collect();
-
-        process_list.sort_by_key(|&(_, process)| process.pid());
-        let mut rows = vec![];
-        for (pid, process) in process_list  {
-
-            let systemtime: u64;
-        
-        
-                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-                unsafe{systemtime = SYSTEM_START_TIME;}
-              
-                let process_duration = format_time(now - systemtime + process.start_time());
-                let name = process.name();
-                let mem = pretty_bytes::converter::convert((process.memory() as f64) * 1000.0);
-                let cpu=process.cpu_usage();
-                let status=process.status();
-         
-        
-                if name.is_empty() {
-                    continue;
-                }
-        
-                for name_part in name.split_whitespace() {
-                    rows.push(format!(" {:<8}  {:<100}  {:>10}  {:>20}%  {:>20}  {:<70} ", pid, name_part, mem, cpu, process_duration, status));
-                }
-            }
-        
-          
-            println!("| {:<8} | {:<100} | {:<10} | {:<20} | {:<20} |{:<70}", "PID", "Name", "Memory", "cpu", "process_duration", "status");
-          
-        
-            for row in rows {
-                println!("{}", row);
-            }
-    }
-    
-
-
-
-
-
-
-  pub  fn sortdesc() {
-    let mut system = System::new();
-   
-    system.refresh_all();
-    //let mut system = System::new();
-    let mut process_list: Vec<_> = system
-    .get_process_list()
-    .iter()
-    .map(|(pid, process)| (*pid, process))
-    .collect();
-
-        process_list.sort_by_key(|&(_, process)| !process.pid());
-        let mut rows = vec![];
-
-for (pid, process) in process_list  {
-
-    let systemtime: u64;
-
-
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-        unsafe{systemtime = SYSTEM_START_TIME;}
-      
-        let process_duration = format_time(now - systemtime + process.start_time());
-        let name = process.name();
-        let mem = pretty_bytes::converter::convert((process.memory() as f64) * 1000.0);
-        let cpu=process.cpu_usage();
-        let status=process.status();
-
-        if name.is_empty() {
-            continue;
-        }
-
-        for name_part in name.split_whitespace() {
-            rows.push(format!(" {:<8}  {:<100}  {:>10}  {:>20}%  {:>20}  {:<70} ", pid, name_part, mem, cpu, process_duration, status));
-        }
-    }
-
-  
-    println!("| {:<8} | {:<100} | {:<10} | {:<20} | {:<20} |{:<70}", "PID", "Name", "Memory", "cpu", "process_duration", "status");
-  
-
-    for row in rows {
-        println!("{}", row);
-    }
-    }
-
-pub fn findbyname(name: &str) -> Vec<Process> {
-    let mut matchingname = Vec::new();
-    for process in psutil::process::processes().unwrap() {
-        if let Ok(process) = process {
-            if let Ok(process_name) = process.name() {
-                if process_name.to_lowercase() == name.to_lowercase() {
-                    matchingname.push(process);
-                }
-            }
-        }
-    }
-    matchingname
 }
 
+fn main() -> Result<(), Box<dyn Error>> {
+    // setup terminal
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
+    // create app and run it
+    let app = App::default();
+    let res = run_app(&mut terminal, app);
 
-pub fn processtable(){
+    // restore terminal
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
 
-    let mut system = System::new();
-   
-    system.refresh_all();
-    let mut process_list: Vec<_> = system
-        .get_process_list()
+    if let Err(err) = res {
+        println!("{:?}", err)
+    }
+
+    Ok(())
+}
+
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+    let mut flag: bool = false;
+    let mut num: i32 = 0;
+    let mut sys = System::new_all();
+    let mut arg = String::new();
+    let mut parts: Vec<String>;
+    let mut history: Vec<String> = vec![];
+    loop {
+        terminal.draw(|f| ui(f, &app))?;
+
+        if let Event::Key(key) = event::read()? {
+            match app.input_mode {
+                InputMode::Normal => match key.code {
+                    KeyCode::Char('e') | KeyCode::Char('E') => {
+                        app.input_mode = InputMode::Editing;
+                    }
+                    KeyCode::Char('q') | KeyCode::Char('Q') => {
+                        return Ok(());
+                    }
+                    _ => {}
+                },
+                InputMode::Editing => match key.code {
+                    KeyCode::Down => {
+                        if flag {
+                            if !(app.output.is_empty()) && history.len() <= (num-45).try_into().unwrap() {
+                                history.push(app.output.remove(1)); 
+                            }                            
+                        }
+                    },
+                    KeyCode::Up => {
+
+                        if flag {
+                            if !(history.is_empty()) {
+                                app.output.insert(1, history.pop().unwrap());
+                            }                            
+                        }
+                    },
+                    KeyCode::Enter => {
+                        parts = app.input.split_whitespace().map(|s| s.to_string()).collect();
+                        app.output.clear();
+                        
+                        match parts[0].as_str() {
+                            "sysinfo" => {push_system_information(&mut sys, &mut app);},
+                            "sensors" => {push_components_information(&mut sys, &mut app);},
+                            "df" => {
+                                
+                                if parts.len() == 2 {
+                                    arg = parts[1][1..].to_string();
+                                }
+                                push_disks_information(&mut sys, arg.clone(), &mut app);
+                            },
+                            "hddtemp" => {
+                                if parts.len() == 2 {
+                                    arg = parts[1][1..].to_string();
+                                }
+                                push_hddtemp(&mut sys, arg.clone(), &mut app);
+                            },
+                            "lscpu" => {push_cpu_information(&mut sys, &mut app);},
+                            "gputemp" => {
+                                if parts.len() == 2 {
+                                    arg = parts[1][1..].to_string();
+                                }
+                                push_gputemp(&mut sys, arg.clone(), &mut app);
+                            },
+                            "kill" => {
+                                if parts.len() == 2 {
+                                    let pid = parts[1].parse::<i32>().unwrap();
+                                    match kill(Pid::from_raw(pid), Signal::SIGTERM) {
+                                        Ok(_) => app.output.push(format!("Process with killed successfully.\n")),
+                                        Err(e) => app.output.push(format!("Error killing process: {}\n", e)),
+                                    }
+                                }
+                            },
+                            "help"=> {
+                                app.output.push(format!("COMMANDS .\n"));
+                                app.output.push(format!("find (pid)--> retrievs the info of process with (pid)"));
+                                app.output.push(format!("ignite --> start new process"));
+                                app.output.push(format!("ptable --> prints proces table"));
+                                app.output.push(format!("desc --> sort process table descendingly"));
+                                app.output.push(format!("sysinfo --> retrieves system info"));
+                                app.output.push(format!("kill (pid)-->kill process with (pid)"));
+                                },
+                            
+                            
+                                "find" => {
+                                    if parts.len() == 2 {
+                                        let pid = parts[1].parse::<i32>().unwrap();
+                                        if let Some(process) = findbypid(pid) {
+                                            app.output.push(format!("Process with PID {} found!: {:?}", pid, process.name().unwrap()));
+                                            let mut p = process;
+                                            app.output.push(format!("{:<30} {:<30} {:<30} {:<30}", "PID","%CPU", "%MEM", "COMMAND"));
+                                                match p.cmdline() {
+                                                    Ok(None) => {},
+                            
+                                                    _=> {app.output.push(format!("{:<30} {:<30} {:<30} {:<30}", p.pid(), p.cpu_percent().unwrap(), p.memory_percent().unwrap(), p.cmdline().unwrap().expect("Oops something went wrong!").to_string()));},
+                                }
+                                           // app.output.push(format!("Process with PID {} found!: {:?}", pid, process.cpu_percent().unwrap()));
+                                        } else {
+                                            app.output.push(format!("Process not found with PID {}", pid));
+                                        }
+                                    }
+                                },
+                            "ignite" => {
+                                if parts.len() == 2 {
+                                    Command::new(parts[1].as_str()).output()?;    
+                                }
+                            },
+                            "desc" =>{
+                                desc(&mut app);
+                            }
+                            "ptable" => {
+                                num = printptable(&mut app);
+                                flag = true;
+                            },
+                            "clear" => {app.output.clear();},
+
+                            _ => {app.output.push(format!("{}: command not found\n", app.input))},
+                        }
+                        app.messages.push(app.input.drain(..).collect());
+                    }
+                    KeyCode::Char(c) => {
+                        app.input.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        app.input.pop();
+                    }
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                    }
+                    _ => {}
+                },
+            }
+        }
+    }
+}
+
+fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints(
+            [
+                Constraint::Length(1),
+                Constraint::Length(3),
+                Constraint::Min(1),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+
+    let (msg, style) = match app.input_mode {
+        InputMode::Normal => (
+            vec![
+                Span::raw("Press "),
+                Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(" to exit, "),
+                Span::styled("e", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(" to start editing."),
+            ],
+            Style::default().add_modifier(Modifier::RAPID_BLINK),
+        ),
+        InputMode::Editing => (
+            vec![
+                Span::raw("Press "),
+                Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(" to stop editing, "),
+                Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(" to record the message"),
+            ],
+            Style::default(),
+        ),
+    };
+    let mut text = Text::from(Spans::from(msg));
+    text.patch_style(style);
+    let help_message = Paragraph::new(text);
+    f.render_widget(help_message, chunks[0]);
+
+    let input = Paragraph::new(app.input.as_ref())
+        .style(match app.input_mode {
+            InputMode::Normal => Style::default().fg(Color::Yellow),
+            InputMode::Editing => Style::default().fg(Color::Green),
+        })
+        .block(Block::default().borders(Borders::ALL).title("Input"));
+    f.render_widget(input, chunks[1]);
+    match app.input_mode {
+        InputMode::Normal =>
+            // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
+            {}
+
+        InputMode::Editing => {
+            // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
+            f.set_cursor(
+                // Put cursor past the end of the input text
+                chunks[1].x + app.input.width() as u16 + 1,
+                // Move one line down, from the border to the input line
+                chunks[1].y + 1,
+            )
+        }
+    }
+
+    let output: Vec<ListItem> = app
+        .output
         .iter()
-        .map(|(pid, process)| (*pid, process))
+        .enumerate()
+        .map(|(i, m)| {
+            let content = vec![Spans::from(Span::raw(format!("{}", m)))];
+            ListItem::new(content)
+        })
         .collect();
+    let output =
+        List::new(output).block(Block::default().borders(Borders::ALL).title("Output")).style(Style::default().fg(Color::Green));
+
+
     
-    let mut rows2 = vec![];
-    
-    for (pid, process) in process_list  {
-    
-        let systemtime: u64;
-    
-    
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-            unsafe{systemtime = SYSTEM_START_TIME;}
-          
-            let process_duration = format_time(now - systemtime + process.start_time());
-            let name = process.name();
-            let mem =   pretty_bytes::converter::convert((process.memory() as f64) * 1000.0);
-            let cpu=process.cpu_usage();
-            let status=process.status();
-     //  let disk= process.disk_usage();
-    
-            if name.is_empty() {
-                continue;
+    f.render_widget(output, chunks[2]);
+}
+
+
+fn push_system_information(sys: &System, app: &mut App) {
+    app.output.push(format!("Name: {}", sys.name().unwrap()));
+    app.output.push(format!("Kernel version: {}", sys.kernel_version().unwrap()));
+    app.output.push(format!("OS version: {}", sys.os_version().unwrap()));
+    app.output.push(format!("Host name: {}", sys.host_name().unwrap()));
+}
+
+fn push_components_information(sys: &mut System, app: &mut App) {
+    // app.output.push(format!("{:<50} {:<50} {:<50} {:<50}", "Brand", "Vendor ID", "Name", "Frequency"));
+    for component in sys.components() {
+        app.output.push(format!("{:?}", component));
+    }
+}
+
+fn push_hddtemp(sys: &mut System, arg: String, app: &mut App) {
+    match arg.as_str() {
+        "" => {
+            for component in sys.components_mut() {
+                if component.label().contains("SSD") || component.label().contains("HDD"){
+                    app.output.push(format!("{}: {:?}°C", component.label(), component.temperature()));
+                    component.refresh();
+                }
+            }            
+        },
+        "max" => {
+            for component in sys.components_mut() {
+                if component.label().contains("SSD") || component.label().contains("HDD"){
+                    app.output.push(format!("{}: {:?}°C", component.label(), component.max()));
+                    component.refresh();
+                }
             }
-    
-            for name_part in name.split_whitespace() {
-                rows2.push(format!(" {:<8}  {:<100}  {:>10}  {:>10}%  {:>20}  {:<70} ", pid, name_part, mem, cpu, process_duration, status));
+        },
+        "crit" => {
+            for component in sys.components_mut() {
+                if component.label().contains("SSD") || component.label().contains("HDD"){
+                    app.output.push(format!("{}: {:?}°C", component.label(), component.critical().unwrap()));
+                    component.refresh();
+                }
             }
+        },
+        _ => {},
+    }   
+}
+
+fn push_disks_information(sys: &mut System, arg: String, app: &mut App) {
+    let base: u64 = 2;
+    let mut power: u32 = 0;
+    match arg.as_str() {
+        "" => {power = 0;},
+        "k" => {power = 10;},
+        "m" => {power = 20;},
+        _ => {},
+    }
+    app.output.push(format!("{:<50} {:<50} {:<50} {:<50} {:<50} {:<50}", "Name", "Mount Point", "Filesystem", "Total Space", "Available Space", "Used Space"));
+    for disk in sys.disks() {
+        app.output.push(format!("{:<50} {:<50} {:<50} {:<50} {:<50} {:<50}", disk.name().to_str().unwrap(), disk.mount_point().to_str().unwrap(), str::from_utf8(disk.file_system()).unwrap(), disk.total_space()/(base.pow(power)), disk.available_space()/(base.pow(power)), disk.total_space()/(base.pow(power)) - disk.available_space()/(base.pow(power))));
+    }
+}
+
+fn push_cpu_information(sys: &mut System, app: &mut App) {
+    app.output.push(format!("{:<50} {:<50} {:<50} {:<50}", "Brand", "Vendor ID", "Name", "Frequency"));
+    for cpu in sys.cpus() {
+        app.output.push(format!("{:<50} {:<50} {:<50} {:<50}", cpu.brand(), cpu.vendor_id(), cpu.name(), cpu.frequency()));
+    }
+}
+
+fn push_gputemp(sys: &mut System, arg: String, app: &mut App) {
+    match arg.as_str() {
+        "" =>  {
+            for component in sys.components_mut() {
+                if component.label().contains("gpu") {
+                    app.output.push(format!("{}: {}°C", component.label(), component.temperature()));
+                    component.refresh();
+                }
+            }       
+        },
+        "max" => {
+            for component in sys.components_mut() {
+                if component.label().contains("gpu"){
+                    app.output.push(format!("{}: {}°C", component.label(), component.max()));
+                    component.refresh();
+                }
+            }   
+        },
+        _ => {}
+    }
+}
+
+fn printptable(app: &mut App) -> i32 {
+    let mut num: i32 = 0;
+    let processes = psutil::process::processes().unwrap();
+    app.output.push(format!("{:<10} {:<10} {:<20} {:<30}", "PID", "%CPU", "%MEM", "COMMAND"));
+    for process in processes {
+        let mut p = process.unwrap();
+        match p.cmdline() {
+            Ok(None) => {},
+            _=> {num = num + 1;app.output.push(format!("{:<10} {:<10} {:<20} {:<30}", p.pid(), p.cpu_percent().unwrap(), p.memory_percent().unwrap(), p.cmdline().unwrap().expect("Oops something went wrong!").to_string()));},
         }
-    
-      
-        println!("| {:<8} | {:<95} | {:<10} | {:<10}  | {:<20} | {:<70}", "PID", "Name", "Memory", "cpu", "process_duration", "status");
+    }
+    return num;
+}
+
+fn desc(app: &mut App) {
        
-        for row in rows2 {
-            println!("{}", row);
-        }
+      let mut processes = psutil::process::processes().unwrap();
+processes.reverse();
+app.output.push(format!("{:<30} {:<30} {:<30} {:<30}", "PID","%CPU", "%MEM", "COMMAND"));
+for process in processes {
+    let mut p = process.unwrap();
+    match p.cmdline() {
+        Ok(None) => {},
+        _=> {app.output.push(format!("{:<30} {:<30} {:<30} {:<30}", p.pid(), p.cpu_percent().unwrap(), p.memory_percent().unwrap(), p.cmdline().unwrap().expect("Oops something went wrong!").to_string()));},
+    }
+    }
+} 
     
 
-
-}
-
-fn main() {
-
-// regular process table ///////////////////////////////////
-let mut system = System::new();
-   
-system.refresh_all();
-
-processtable();
-////////////////////////////////////////////////////////////////////////
-system.refresh_network();
-    println!("total memory: {}", pretty_bytes::converter::convert((system.get_total_memory() as f64) * 1000.0));
-    println!("used  memory : {}", pretty_bytes::converter::convert((system.get_used_memory() as f64) * 1000.0));
-    println!("{:?}", system.get_network());
-    
-    
-    // let network = system.get_network();
-
-    //   //  println!("Interface name: {}", network.get_name());
-    //     println!("Input: {:.2} B/s", network.get_income());
-    //     println!("Output: {:.2} B/s", network.get_outcome());
-
-
-	loop{
-		let mut input = String::new();
-		io::stdin().read_line(&mut input).expect("Failed to get input.");
-		match input.as_str().trim(){
-            "memory info "=> {
-            println!("total memory: {}", pretty_bytes::converter::convert((system.get_total_memory() as f64) * 1000.0));
-            println!("{}", pretty_bytes::converter::convert((system.get_used_memory() as f64) * 1000.0))},
-            "Network info" => {println!("{:?}", system.get_network());},
-			"sysinfo" => {},
-			"hddtemp" => {},
-			"gputemp" => {},
-			"sensors" => {},
-      "help" => { 
-        println!("Commands: ");
-        println!("sort --> sort process table ASC relative to pid");
-        println!("kill (process pid) --> kills process by pid");
-        println!("pstree --> prints process tree");
-        println!("search--> searches process by pid");
-        println!("     ");
-
-    },
-    "findbyid" => { 
-
-          let mut iter = input.split_whitespace();
-    // Skip the first string
-    let parsed = iter.nth(1).and_then(|num_str| num_str.trim().parse::<i32>().ok());
-let parsedpid= parsed.unwrap();
-
-
-let pid = 30515;
-
-match findbypid(pid) {
-    Some(process) => println!("Found process {} with PID {}", process.name(), pid),
-    None => println!("No process found with PID {}", pid),
-}
-   
-    },
-    "kill" => { 
-        let pidkill = 18143; //replace with command arg
-        if let Some(process) = system.get_process(pidkill) {
-            println!("Killing PID {}: {}", pidkill, process.name());
-            process.kill(sysinfo::Signal::Kill); // SIGKILL signal to the process
-        } else {
-            println!("Process {} not found.", pidkill);
-        }
-       
-
-    },
-    "finsbyname" => { 
-        let name = "firefox";
-
-        let matching_processes = findbyname(name);
-        if matching_processes.len() > 0 {
-            println!("Found {} processes with name '{}':", matching_processes.len(), name);
-            for process in matching_processes {
-                println!("PID: {}, Name: {}", process.pid(), process.name().unwrap_or("unknown process".to_string()));
-            }
-        } else {
-            println!("No processes found with name '{}'", name);
-        }
-    },
-    "desc" => { 
-     sortasc();
-     
-
-    },
-    "PT" => { 
-        processtable();
-        
-   
-       },
-    "asc" => { 
-        sortdesc();
-
-    println!("     ");
-    },
-			"quit" => {
-				println!("Exiting program");
-				break;
-			},
-			_ => {println!("Commands: ");
-            println!("sort --> sort process table ASC relative to pid");
-            println!("kill (process pid) --> kills process by pid");
-            println!("pstree --> prints process tree");
-            println!("search--> searches process by pid");
-            println!("     ");}
-		}
-	}
-
-}
+pub fn findbypid(pid: i32) -> Option<Process> {
+    match Process::new(pid.try_into().unwrap()) {
+        Ok(process) => Some(process),
+        Err(_) => None
+    }
+  }
+  
+//   pub fn findbyname(name: &str) -> Vec<Process> {
+//         let mut matchingname = Vec::new();
+//         for process in psutil::process::processes().unwrap() {
+//             if let Ok(process) = process {
+//                 if let Ok(process_name) = process.name() {
+//                     if process_name.to_lowercase() == name.to_lowercase() {
+//                         matchingname.push(process);
+//                     }
+//                 }
+//             }
+//         }
+//         matchingname
+//     }
