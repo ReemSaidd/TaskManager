@@ -13,20 +13,15 @@ use tui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame, Terminal,
 };
-use unicode_width::UnicodeWidthStr;
 use sysinfo::{ComponentExt, NetworkExt, NetworksExt, ProcessExt, System, SystemExt, CpuExt, CpuRefreshKind, RefreshKind, DiskExt};
-use std::str;
+use unicode_width::UnicodeWidthStr;
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
-
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::str;
 use std::process::Command;
-use psutil::process::processes;
-use psutil::process::Process;
-use psutil::Result;
-use prettytable::{Table, Row, Cell};
-use libc::system;
-pub static mut SYSTEM_START_TIME: u64 = 0;
+
+use psutil::process::{Process, ProcessError};
+
 enum InputMode {
     Normal,
     Editing,
@@ -53,7 +48,7 @@ impl Default for App {
     }
 }
 
-fn main() -> Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -85,6 +80,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
     let mut sys = System::new_all();
     let mut arg = String::new();
     let mut parts: Vec<String>;
+    let mut history: Vec<String> = vec![];
     loop {
         terminal.draw(|f| ui(f, &app))?;
 
@@ -100,6 +96,21 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     _ => {}
                 },
                 InputMode::Editing => match key.code {
+                    KeyCode::Down => {
+                        if !app.output.is_empty() {
+                            history.push(app.output.remove(1)); 
+                        }
+                    },
+                    KeyCode::Up => {
+                        if !history.is_empty() {
+                            app.output.insert(1, history.pop().unwrap());    
+                        }
+                        
+                        if !app.output.is_empty() {
+                            app.output.pop();    
+                        }
+                        
+                    },
                     KeyCode::Enter => {
                         parts = app.input.split_whitespace().map(|s| s.to_string()).collect();
                         app.output.clear();
@@ -136,6 +147,14 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                                     }
                                 }
                             },
+                            "ignite" => {
+                                if parts.len() == 2 {
+                                    let output = Command::new(parts[1].as_str()).output()?;    
+                                }
+                            },
+                            "ps" => {
+                                printptable(&mut app);
+                            }
                             "clear" => {app.output.clear();},
                             _ => {app.output.push(format!("{}: command not found\n", app.input))},
                         }
@@ -232,9 +251,12 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
         .collect();
     let output =
         List::new(output).block(Block::default().borders(Borders::ALL).title("Output")).style(Style::default().fg(Color::Green));
+
+
     
     f.render_widget(output, chunks[2]);
 }
+
 
 fn push_system_information(sys: &System, app: &mut App) {
     app.output.push(format!("Name: {}", sys.name().unwrap()));
@@ -324,35 +346,15 @@ fn push_gputemp(sys: &mut System, arg: String, app: &mut App) {
     }
 }
 
-// fn push_ptable(app: &mut App) {
-//     let mut process_list: Vec<_> = system
-//     .get_process_list()
-//     .iter()
-//     .map(|(pid, process)| (*pid, process))
-//     .collect();
-//     app.output.push(format!("| {:<8} | {:<100} | {:<10} | {:<10}  | {:<20} | {:<70}", "PID", "Name", "Memory", "cpu", "process_duration", "status"));
-//     for (pid, process) in process_list  {
-//         let systemtime: u64;
-//         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-//         unsafe{systemtime = SYSTEM_START_TIME;}
-//         let process_duration = format_time(now - systemtime + process.start_time());
-//         let name = process.name();
-//         let mem =   pretty_bytes::converter::convert((process.memory() as f64) * 1000.0);
-//         let cpu=process.cpu_usage();
-//         let status=process.status();
-//         if name.is_empty() {
-//             continue;
-//         }
-//         for name_part in name.split_whitespace() {
-//             app.output.push(format!(" {:<8}  {:<100}  {:>10}  {:>10}%  {:>20}  {:<70} ", pid, name_part, mem, cpu, process_duration, status));
-//         }
-//     }
-// }
-
-// pub fn format_time(seconds: u64) -> String {
-//     let seconds = seconds as u64;
-//    // let hours = seconds / 3600;
-//     let minutes = (seconds / 60) % 60;
-//     let seconds = seconds % 60;
-//     format!("{:02}:{:02}",minutes, seconds)
-// }
+fn printptable(app: &mut App) {
+    let processes = psutil::process::processes().unwrap();
+    app.output.push(format!("{:<30} {:<30} {:<30} {:<30}", "PID", "%CPU", "%MEM", "COMMAND"));
+    for process in processes {
+        let mut p = process.unwrap();
+        match p.cmdline() {
+            Ok(None) => {},
+            _=> {app.output.push(format!("{:<30} {:<30} {:<30} {:<30}", p.pid(), p.cpu_percent().unwrap(), p.memory_percent().unwrap(), p.cmdline().unwrap().expect("Oops something went wrong!").to_string()));},
+        }
+        
+    }
+}
