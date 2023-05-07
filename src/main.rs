@@ -77,6 +77,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+    let mut flag: bool = false;
+    let mut num: i32 = 0;
     let mut sys = System::new_all();
     let mut arg = String::new();
     let mut parts: Vec<String>;
@@ -97,19 +99,18 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 },
                 InputMode::Editing => match key.code {
                     KeyCode::Down => {
-                        if !app.output.is_empty() && history.len() <= app.output.len() {
-                            history.push(app.output.remove(1)); 
+                        if flag {
+                            if !(app.output.is_empty()) && history.len() <= (num-45).try_into().unwrap() {
+                                history.push(app.output.remove(1)); 
+                            }                            
                         }
                     },
                     KeyCode::Up => {
-                        if !history.is_empty() {
-                            app.output.insert(1, history.pop().unwrap());    
+                        if flag {
+                            if !(app.output.is_empty()) && history.len() <= (num-45).try_into().unwrap() {
+                                history.push(app.output.remove(1)); 
+                            }                            
                         }
-                        
-                        // if !app.output.is_empty() {
-                        //     app.output.pop();    
-                        // }
-                        
                     },
                     KeyCode::Enter => {
                         parts = app.input.split_whitespace().map(|s| s.to_string()).collect();
@@ -152,10 +153,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                                     let output = Command::new(parts[1].as_str()).output()?;    
                                 }
                             },
-                            "ps" => {
-                                printptable(&mut app);
+                            "ptable" => {
+                                num = printptable(&mut app);
+                                flag = true;
                             }
                             "clear" => {app.output.clear();},
+
                             _ => {app.output.push(format!("{}: command not found\n", app.input))},
                         }
                         app.messages.push(app.input.drain(..).collect());
@@ -346,15 +349,16 @@ fn push_gputemp(sys: &mut System, arg: String, app: &mut App) {
     }
 }
 
-fn printptable(app: &mut App) {
+fn printptable(app: &mut App) -> i32 {
+    let mut num: i32 = 0;
     let processes = psutil::process::processes().unwrap();
-    app.output.push(format!("{:<30} {:<30} {:<30} {:<30}", "PID", "%CPU", "%MEM", "COMMAND"));
+    app.output.push(format!("{:<10} {:<10} {:<20} {:<30}", "PID", "%CPU", "%MEM", "COMMAND"));
     for process in processes {
         let mut p = process.unwrap();
         match p.cmdline() {
             Ok(None) => {},
-            _=> {app.output.push(format!("{:<30} {:<30} {:<30} {:<30}", p.pid(), p.cpu_percent().unwrap(), p.memory_percent().unwrap(), p.cmdline().unwrap().expect("Oops something went wrong!").to_string()));},
+            _=> {num = num + 1;app.output.push(format!("{:<10} {:<10} {:<20} {:<30}", p.pid(), p.cpu_percent().unwrap(), p.memory_percent().unwrap(), p.cmdline().unwrap().expect("Oops something went wrong!").to_string()));},
         }
-        
     }
+    return num;
 }
