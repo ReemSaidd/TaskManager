@@ -1,5 +1,5 @@
 
-use sysinfo::{ComponentExt, System, SystemExt, CpuExt, DiskExt};
+use sysinfo::{ComponentExt, System, SystemExt, CpuExt, DiskExt, Process, ProcessExt, Pid, PidExt};
 use std::str;
 use ptree::{self, item::StringItem};
 use std::collections::HashMap;
@@ -104,7 +104,7 @@ pub fn get_gputemp(sys: &mut System, arg: String) -> Vec<String> {
 }
 
 pub fn pstree_new(sys: &mut System) {
-    let processes = System::get_process_list();
+    let processes = SystemExt::processes(sys);
     let mut sorted_keys: Vec<_> = processes.keys().collect();
     sorted_keys.sort();
     let mut process_map: HashMap<i32, Vec<i32>> = HashMap::new();
@@ -116,16 +116,16 @@ pub fn pstree_new(sys: &mut System) {
         // let new = ptree::TreeBuilder::new("root".to_string()).begin_child(processes[pid].name().to_string());
         // let neww = tree.begin_child(processes[pid].name().to_string()).build();
         let process = &processes[pid];
-        match process.parent() {
+        match Process::parent(process) {
             Some(parent_pid) => {
                 process_map
-                    .entry(parent_pid)
+                    .entry(Pid::as_u32(parent_pid) as i32)
                     .or_insert_with(Vec::new)
-                    .push(*pid);
+                    .push(Pid::as_u32(*pid) as i32);
             }
             None => {
                 // If there is no parent process, assume it is the root process
-                process_map.entry(0).or_insert_with(Vec::new).push(*pid);
+                process_map.entry(0).or_insert_with(Vec::new).push(Pid::as_u32(*pid) as i32);
             }
         }
         //let results = ptree::print_tree(&neww);
