@@ -115,8 +115,20 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     KeyCode::Enter => {
                         parts = app.input.split_whitespace().map(|s| s.to_string()).collect();
                         app.output.clear();
-                        
+                        app.messages.push(app.input.drain(..).collect());
                         match parts[0].as_str() {
+                            "uname" => {
+                                flag = false;
+                                app.output.push(format!("{}", sys.kernel_version().unwrap()))
+                            },
+                            "release" => {
+                                flag = false;
+                                app.output.push(format!("{}", sys.os_version().unwrap()))
+                            },
+                            "hostname" => {
+                                flag = false;
+                                app.output.push(format!("{}", sys.host_name().unwrap()))
+                            },
                             "sysinfo" => {
                                 flag = false;
                                 app.output = get_system_information(&mut sys);
@@ -177,7 +189,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
 
                             _ => {app.output.push(format!("{}: command not found\n", app.input))},
                         }
-                        app.messages.push(app.input.drain(..).collect());
+                        
                     }
                     KeyCode::Char(c) => {
                         app.input.push(c);
@@ -263,7 +275,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
         .output
         .iter()
         .enumerate()
-        .map(|(i, m)| {
+        .map(|(_i, m)| {
             let content = vec![Spans::from(Span::raw(format!("{}", m)))];
             ListItem::new(content)
         })
@@ -288,7 +300,6 @@ fn get_system_information(sys: &System) -> Vec<String> {
 
 fn get_components_information(sys: &mut System) -> Vec<String> {
     let mut vec: Vec<String> = vec![];
-    // app.output.push(format!("{:<50} {:<50} {:<50} {:<50}", "Brand", "Vendor ID", "Name", "Frequency"));
     for component in sys.components() {
         vec.push(format!("{:?}", component));
     }
