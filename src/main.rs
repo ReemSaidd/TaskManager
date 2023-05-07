@@ -97,7 +97,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 },
                 InputMode::Editing => match key.code {
                     KeyCode::Down => {
-                        if !app.output.is_empty() {
+                        if !app.output.is_empty() && history.len() <= app.output.len() {
                             history.push(app.output.remove(1)); 
                         }
                     },
@@ -106,9 +106,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                             app.output.insert(1, history.pop().unwrap());    
                         }
                         
-                        if !app.output.is_empty() {
-                            app.output.pop();    
-                        }
+                        // if !app.output.is_empty() {
+                        //     app.output.pop();    
+                        // }
                         
                     },
                     KeyCode::Enter => {
