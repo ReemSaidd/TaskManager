@@ -4,7 +4,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{error::Error, io};
+use std::{error::Error, io, time::Duration};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
@@ -15,12 +15,16 @@ use tui::{
 };
 use sysinfo::{ComponentExt, NetworkExt, NetworksExt, ProcessExt, System, SystemExt, CpuExt, CpuRefreshKind, RefreshKind, DiskExt};
 use unicode_width::UnicodeWidthStr;
-use nix::sys::signal::{kill, Signal};
+use nix::{sys::signal::{kill, Signal}, libc::sleep};
 use nix::unistd::Pid;
 use std::str;
 use std::process::Command;
 
 use psutil::process::{Process, ProcessError};
+
+use termion::{color, style};
+use pretty_bytes::converter::convert;
+
 
 enum InputMode {
     Normal,
@@ -186,10 +190,24 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                             "desc" =>{
                                 desc(&mut app);
                             }
+                            ,
+                            "move" =>{
+                                dynamicptable(&mut app);
+                            },
+                            "network" =>{
+                                networkuti(&mut app);
+                            },
+
+
+                            "memory" => {
+                                memutil(&mut app)
+                            },
+
                             "ptable" => {
                                 num = printptable(&mut app);
                                 flag = true;
                             },
+                           
                             "clear" => {app.output.clear();},
 
                             _ => {app.output.push(format!("{}: command not found\n", app.input))},
@@ -299,7 +317,27 @@ fn push_system_information(sys: &System, app: &mut App) {
     app.output.push(format!("Kernel version: {}", sys.kernel_version().unwrap()));
     app.output.push(format!("OS version: {}", sys.os_version().unwrap()));
     app.output.push(format!("Host name: {}", sys.host_name().unwrap()));
+  //  app.output.push(format!("Networks: {}", sys.networks().unwrap()));
 }
+
+
+fn networkuti(app: &mut App) {
+    let mut system = System::new_all();
+    system.refresh_all();
+
+    for (interface_name, network_interface) in system.networks() {
+        app.output.push(format!("Interface {}: transmitted: {}, received: {}", interface_name, network_interface.total_packets_transmitted(), network_interface.total_packets_received()));
+    }
+}
+
+fn memutil(app: &mut App) {
+    let s = System::new_all();
+    app.output.push(format!("Total Memory: {}", convert(s.total_memory()as f64)));
+    app.output.push(format!("Used Memory: {}", convert(s.used_memory()as f64)));
+    app.output.push(format!("Free Memory: {}", convert(s.free_memory()as f64)));
+
+}
+
 
 fn push_components_information(sys: &mut System, app: &mut App) {
     // app.output.push(format!("{:<50} {:<50} {:<50} {:<50}", "Brand", "Vendor ID", "Name", "Frequency"));
@@ -417,6 +455,42 @@ pub fn findbypid(pid: i32) -> Option<Process> {
         Err(_) => None
     }
   }
+
+  pub fn networkutiliaztions() {
+ 
+
+  }
+
+  fn dynamicptable(app: &mut App) {
+    loop {
+        // Get a list of processes
+        let processes = psutil::process::processes().unwrap();
+
+        // Clear the output buffer
+        app.output.clear();
+
+        // Print the header
+        app.output.push(format!(
+            "{:<10} {:<15} {:<15} {:<50}",
+            "PID", "%CPU", "%MEM", "COMMAND"
+        ));
+
+        // Print each process
+        for process in processes {
+            let mut p = process.unwrap();
+            match p.cmdline() {
+                Ok(None) => {},
+                _=> {app.output.push(format!("{:<30} {:<30} {:<30} {:<30}", p.pid(), p.cpu_percent().unwrap(), p.memory_percent().unwrap(), p.cmdline().unwrap().expect("Oops something went wrong!").to_string()));},
+            }
+        }
+
+        // Print the output buffer to the terminal
+        println!("{}", app.output.join("\n"));
+
+        // Sleep for 2 seconds before updating the display again
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+}
   
 //   pub fn findbyname(name: &str) -> Vec<Process> {
 //         let mut matchingname = Vec::new();
