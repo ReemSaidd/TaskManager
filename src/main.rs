@@ -106,9 +106,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         }
                     },
                     KeyCode::Up => {
+
                         if flag {
-                            if !(app.output.is_empty()) && history.len() <= (num-45).try_into().unwrap() {
-                                history.push(app.output.remove(1)); 
+                            if !(history.is_empty()) {
+                                app.output.insert(1, history.pop().unwrap());
                             }                            
                         }
                     },
@@ -150,7 +151,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                             },
                             "ignite" => {
                                 if parts.len() == 2 {
-                                    let output = Command::new(parts[1].as_str()).output()?;    
+                                    Command::new(parts[1].as_str()).output()?;    
                                 }
                             },
                             "ptable" => {
