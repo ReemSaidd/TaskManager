@@ -85,7 +85,6 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
     let mut history: Vec<String> = vec![];
     loop {
         terminal.draw(|f| ui(f, &app))?;
-
         if let Event::Key(key) = event::read()? {
             match app.input_mode {
                 InputMode::Normal => match key.code {
@@ -118,29 +117,41 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         app.output.clear();
                         
                         match parts[0].as_str() {
-                            "sysinfo" => {push_system_information(&mut sys, &mut app);},
-                            "sensors" => {push_components_information(&mut sys, &mut app);},
+                            "sysinfo" => {
+                                flag = false;
+                                app.output = get_system_information(&mut sys);
+                            },
+                            "sensors" => {
+                                flag = false;
+                                app.output = get_components_information(&mut sys);
+                            },
                             "df" => {
-                                
+                                flag = false;
                                 if parts.len() == 2 {
                                     arg = parts[1][1..].to_string();
                                 }
-                                push_disks_information(&mut sys, arg.clone(), &mut app);
+                                app.output = get_disks_information(&mut sys, arg.clone());
                             },
                             "hddtemp" => {
+                                flag = false;
                                 if parts.len() == 2 {
                                     arg = parts[1][1..].to_string();
                                 }
-                                push_hddtemp(&mut sys, arg.clone(), &mut app);
+                                app.output = get_hddtemp(&mut sys, arg.clone());
                             },
-                            "lscpu" => {push_cpu_information(&mut sys, &mut app);},
+                            "lscpu" => {
+                                flag = false;
+                                app.output = get_cpu_information(&mut sys);
+                            },
                             "gputemp" => {
+                                flag = false;
                                 if parts.len() == 2 {
                                     arg = parts[1][1..].to_string();
                                 }
-                                push_gputemp(&mut sys, arg.clone(), &mut app);
+                                app.output = get_gputemp(&mut sys, arg.clone());
                             },
                             "kill" => {
+                                flag = false;
                                 if parts.len() == 2 {
                                     let pid = parts[1].parse::<i32>().unwrap();
                                     match kill(Pid::from_raw(pid), Signal::SIGTERM) {
@@ -150,6 +161,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                                 }
                             },
                             "ignite" => {
+                                flag = false;
                                 if parts.len() == 2 {
                                     Command::new(parts[1].as_str()).output()?;    
                                 }
@@ -158,7 +170,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                                 num = printptable(&mut app);
                                 flag = true;
                             }
-                            "clear" => {app.output.clear();},
+                            "clear" => {
+                                flag = false;
+                                app.output.clear();
+                            },
 
                             _ => {app.output.push(format!("{}: command not found\n", app.input))},
                         }
@@ -262,26 +277,31 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
 }
 
 
-fn push_system_information(sys: &System, app: &mut App) {
-    app.output.push(format!("Name: {}", sys.name().unwrap()));
-    app.output.push(format!("Kernel version: {}", sys.kernel_version().unwrap()));
-    app.output.push(format!("OS version: {}", sys.os_version().unwrap()));
-    app.output.push(format!("Host name: {}", sys.host_name().unwrap()));
+fn get_system_information(sys: &System) -> Vec<String> {
+    let mut vec: Vec<String> = vec![];
+    vec.push(format!("Name: {}", sys.name().unwrap()));
+    vec.push(format!("Kernel version: {}", sys.kernel_version().unwrap()));
+    vec.push(format!("OS version: {}", sys.os_version().unwrap()));
+    vec.push(format!("Host name: {}", sys.host_name().unwrap()));
+    return vec;
 }
 
-fn push_components_information(sys: &mut System, app: &mut App) {
+fn get_components_information(sys: &mut System) -> Vec<String> {
+    let mut vec: Vec<String> = vec![];
     // app.output.push(format!("{:<50} {:<50} {:<50} {:<50}", "Brand", "Vendor ID", "Name", "Frequency"));
     for component in sys.components() {
-        app.output.push(format!("{:?}", component));
+        vec.push(format!("{:?}", component));
     }
+    return vec;
 }
 
-fn push_hddtemp(sys: &mut System, arg: String, app: &mut App) {
+fn get_hddtemp(sys: &mut System, arg: String) -> Vec<String> {
+    let mut vec: Vec<String> = vec![];
     match arg.as_str() {
         "" => {
             for component in sys.components_mut() {
                 if component.label().contains("SSD") || component.label().contains("HDD"){
-                    app.output.push(format!("{}: {:?}°C", component.label(), component.temperature()));
+                    vec.push(format!("{}: {:?}°C", component.label(), component.temperature()));
                     component.refresh();
                 }
             }            
@@ -289,7 +309,7 @@ fn push_hddtemp(sys: &mut System, arg: String, app: &mut App) {
         "max" => {
             for component in sys.components_mut() {
                 if component.label().contains("SSD") || component.label().contains("HDD"){
-                    app.output.push(format!("{}: {:?}°C", component.label(), component.max()));
+                    vec.push(format!("{}: {:?}°C", component.label(), component.max()));
                     component.refresh();
                 }
             }
@@ -297,16 +317,18 @@ fn push_hddtemp(sys: &mut System, arg: String, app: &mut App) {
         "crit" => {
             for component in sys.components_mut() {
                 if component.label().contains("SSD") || component.label().contains("HDD"){
-                    app.output.push(format!("{}: {:?}°C", component.label(), component.critical().unwrap()));
+                    vec.push(format!("{}: {:?}°C", component.label(), component.critical().unwrap()));
                     component.refresh();
                 }
             }
         },
         _ => {},
     }   
+    return vec;
 }
 
-fn push_disks_information(sys: &mut System, arg: String, app: &mut App) {
+fn get_disks_information(sys: &mut System, arg: String) -> Vec<String> {
+    let mut vec: Vec<String> = vec![];
     let base: u64 = 2;
     let mut power: u32 = 0;
     match arg.as_str() {
@@ -315,25 +337,29 @@ fn push_disks_information(sys: &mut System, arg: String, app: &mut App) {
         "m" => {power = 20;},
         _ => {},
     }
-    app.output.push(format!("{:<50} {:<50} {:<50} {:<50} {:<50} {:<50}", "Name", "Mount Point", "Filesystem", "Total Space", "Available Space", "Used Space"));
+    vec.push(format!("{:<50} {:<50} {:<50} {:<50} {:<50} {:<50}", "Name", "Mount Point", "Filesystem", "Total Space", "Available Space", "Used Space"));
     for disk in sys.disks() {
-        app.output.push(format!("{:<50} {:<50} {:<50} {:<50} {:<50} {:<50}", disk.name().to_str().unwrap(), disk.mount_point().to_str().unwrap(), str::from_utf8(disk.file_system()).unwrap(), disk.total_space()/(base.pow(power)), disk.available_space()/(base.pow(power)), disk.total_space()/(base.pow(power)) - disk.available_space()/(base.pow(power))));
+        vec.push(format!("{:<50} {:<50} {:<50} {:<50} {:<50} {:<50}", disk.name().to_str().unwrap(), disk.mount_point().to_str().unwrap(), str::from_utf8(disk.file_system()).unwrap(), disk.total_space()/(base.pow(power)), disk.available_space()/(base.pow(power)), disk.total_space()/(base.pow(power)) - disk.available_space()/(base.pow(power))));
     }
+    return vec;
 }
 
-fn push_cpu_information(sys: &mut System, app: &mut App) {
-    app.output.push(format!("{:<50} {:<50} {:<50} {:<50}", "Brand", "Vendor ID", "Name", "Frequency"));
+fn get_cpu_information(sys: &mut System) -> Vec<String> {
+    let mut vec: Vec<String> = vec![];
+    vec.push(format!("{:<50} {:<50} {:<50} {:<50}", "Brand", "Vendor ID", "Name", "Frequency"));
     for cpu in sys.cpus() {
-        app.output.push(format!("{:<50} {:<50} {:<50} {:<50}", cpu.brand(), cpu.vendor_id(), cpu.name(), cpu.frequency()));
+        vec.push(format!("{:<50} {:<50} {:<50} {:<50}", cpu.brand(), cpu.vendor_id(), cpu.name(), cpu.frequency()));
     }
+    return vec;
 }
 
-fn push_gputemp(sys: &mut System, arg: String, app: &mut App) {
+fn get_gputemp(sys: &mut System, arg: String) -> Vec<String> {
+    let mut vec: Vec<String> = vec![];
     match arg.as_str() {
         "" =>  {
             for component in sys.components_mut() {
                 if component.label().contains("gpu") {
-                    app.output.push(format!("{}: {}°C", component.label(), component.temperature()));
+                    vec.push(format!("{}: {}°C", component.label(), component.temperature()));
                     component.refresh();
                 }
             }       
@@ -341,13 +367,14 @@ fn push_gputemp(sys: &mut System, arg: String, app: &mut App) {
         "max" => {
             for component in sys.components_mut() {
                 if component.label().contains("gpu"){
-                    app.output.push(format!("{}: {}°C", component.label(), component.max()));
+                    vec.push(format!("{}: {}°C", component.label(), component.max()));
                     component.refresh();
                 }
             }   
         },
         _ => {}
     }
+    return vec;
 }
 
 fn printptable(app: &mut App) -> i32 {
