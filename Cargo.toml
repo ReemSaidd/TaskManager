@@ -13,3 +13,9 @@ sysinfo = "0.29.0"
 termion = "2.0.1"
 nix = "0.26.2"
 psutil = "3.2.2"
+ptree = "0.4"
+
+[[bin]]
+doc = false
+path = "src/main.rs"
+name = "TaskManager"
